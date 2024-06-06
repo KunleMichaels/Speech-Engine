@@ -1,50 +1,69 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 export const useSpeechEngine = (textToSpeak: string) => {
     const [isPlaying, setIsPlaying] = useState(false);
-    
     const synth = window.speechSynthesis;
+    const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
     const cleanupSpeechSynthesis = useCallback(() => {
-        if(synth){
+        if (synth) {
             synth.cancel();
-        } 
-    }, [synth])
+        }
+    }, [synth]);
 
     useEffect(() => {
         return () => {
             cleanupSpeechSynthesis();
-        }
-    }, [cleanupSpeechSynthesis])
-
+        };
+    }, [cleanupSpeechSynthesis]);
 
     const togglePlayback = () => {
-        if(isPlaying){
+        if (!synth) return;
+
+        if (isPlaying) {
             synth.pause();
             console.log("Pause", synth);
         } else {
-            synth.resume()
+            synth.resume();
             console.log("Resume", synth);
         }
-        
+
         setIsPlaying(!isPlaying);
-    }
-
-    const cancel = () => synth.cancel();
-
-    const speak = () => {
-        if(synth && textToSpeak){
-            if (synth.speaking) {
-                console.error("speechSynthesis.speaking");
-                return;
-            }
-            const utterance = new SpeechSynthesisUtterance();
-            utterance.text = textToSpeak;
-            setIsPlaying(true);
-            synth.speak(utterance);
-        }
     };
 
-    return { speak, togglePlayback, cancel, isPlaying }
-    
-}
+    const cancel = () => {
+        if (synth) {
+            synth.cancel();
+        }
+        setIsPlaying(false);
+    };
+
+    const speak = () => {
+        if (!synth || !textToSpeak) return;
+
+        if (synth.speaking) {
+            console.error("speechSynthesis.speaking");
+            return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utteranceRef.current = utterance;
+
+        utterance.onstart = () => {
+            setIsPlaying(true);
+        };
+
+        utterance.onend = () => {
+            setIsPlaying(false);
+        };
+
+        utterance.onerror = (event) => {
+            console.error("SpeechSynthesisUtterance error:", event);
+            setIsPlaying(false);
+        };
+
+        synth.speak(utterance);
+    };
+
+    return { speak, togglePlayback, cancel, isPlaying };
+};
